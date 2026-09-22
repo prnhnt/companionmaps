@@ -45,6 +45,40 @@ destination, so you appear on everyone else's map too.
 
 ---
 
+## Designed to be used while driving
+
+A glance at a screen in a moving car is worth about a second and a half. That
+is the constraint everything below falls out of.
+
+**The app picks its own layout.** Speed decides: above ~15 km/h you get the
+driving layout, and after a minute and a half stopped the full one comes back.
+The threshold has a 90-second delay on the way out, so a red light or a toll
+booth does not reshuffle the interface underneath you. You can override it,
+and the override lasts — except that a full minute of genuine driving will
+overrule a manual "I'm parked", because otherwise one tap at a services stop
+would disable the safe layout for the rest of the journey.
+
+**Driving, there are three controls.** Say something, show the whole convoy,
+and go back to the full layout. Everything else a moving car does not need,
+and a control you do not need makes the one you do need harder to hit. Every
+target clears 44pt several times over; the type, spacing and tap sizes all
+step up bodily from one set of tokens.
+
+**One sentence, not a dashboard.** The app does the scanning and asserts the
+single most important thing — *Tom 7 min behind*, *Mira lost signal*,
+*4 cars together* — ranked so an urgent ping beats a lost signal beats a
+straggler. Everything else is available; nothing else is asserted.
+
+**Nobody types.** There is no text entry anywhere except the join screen and
+destination search, and destination search warns you if you are moving.
+Talking to the convoy is six buttons: *wait for me*, *rest stop*, *need fuel*,
+*on my way*, *lost you*, *need help*. One tap, sent, closed — no confirmation
+step, because a modal on top of a modal in a moving car is worse than an
+occasional stray ping.
+
+**The screen stays on** while you are driving and sharing a location, and the
+lock is dropped the moment the app is backgrounded.
+
 ## What it does
 
 **Convoy** — one destination, a short join code (`TRK-4H2`), up to 12 cars.
@@ -54,34 +88,35 @@ Anyone can set or change the destination; it applies to everyone at once.
 breadcrumb trail behind it. Markers glide between fixes instead of teleporting,
 and turn to face the direction of travel.
 
-**Convoy order** — the sidebar is sorted by who is closest to the destination,
-so the list *is* the running order. Each row shows the gap to you, whether they
-are ahead or behind, and how their arrival compares to yours (`+4 min`).
+**Convoy order** — companions are sorted by who is closest to the destination,
+so the list *is* the running order. Each card carries three facts and no more:
+who, how far, which way.
 
-**Side-by-side** — clicking a companion splits the stage: your convoy overview
-on the left, their own followed map on the right, with the numbers underneath.
-Drag the divider, use `←`/`→` to cycle companions, `Esc` to close.
+**Side-by-side** — tap a companion and their own followed map opens beside
+yours, with the numbers underneath: the gap between you, whether they are
+ahead or behind, and how their arrival compares to yours. On a phone it
+becomes a dock over the lower half instead, because two maps across a 400px
+screen is two maps you cannot read. Drag the divider, `←`/`→` to cycle,
+`Esc` to close.
 
-**Convoy health** — spread between the front and back car, a warning when the
-group drifts more than five minutes apart, and a flag on anyone whose signal
-has gone.
+**Convoy health** — a warning when the group drifts more than five minutes
+apart, and a flag on anyone whose signal has gone.
 
-**Pings** — one-tap messages that need no typing: *wait for me*, *rest stop*,
-*need fuel*, *on my way*, *lost you*.
+**Getting in is one screen** — the code fills itself in from the link, your
+name is remembered, and the invite goes out through the OS share sheet to
+whatever group chat you are already using.
 
 **Reconnects properly** — a reload or a tunnel rejoins as the same car rather
 than leaving a ghost marker behind, and a disconnected car stays on the map as
 "no signal" instead of vanishing.
 
----
-
 ## How it fits together
 
 ```
-packages/shared   domain model, geo math, ETA, convoy derivation,
-                  wire protocol, car projection   ← all the rules live here
+packages/shared   domain model, geo math, ETA, convoy derivation, the
+                  glanceable headline, wire protocol, car projection
 packages/server   WebSocket hub, in-memory store, provider proxy, simulator
-packages/web      React + MapLibre client
+packages/web      React + MapLibre client, drive-mode policy
 ```
 
 Everything that decides *anything* — who is ahead, what the ETA is, whether the
@@ -171,7 +206,7 @@ the car.
 ## Commands
 
 ```bash
-npm test                 # 108 tests across shared + server
+npm test                 # 133 tests across all three packages
 npm run typecheck        # all three packages
 npm run build            # production web bundle
 npm run sim -- --help    # see below
@@ -203,3 +238,9 @@ These are design choices for a prototype, not oversights:
 - **Up to 12 cars.** The batching is fine well past that; the UI is not.
 - **Route geometry is only drawn for you and the companion you have open**, to
   keep the map readable.
+- **Map markers do not avoid each other.** Cars sitting within a few hundred
+  metres overlap their name labels. Fixing it properly means moving from
+  MapLibre markers to a symbol layer with collision detection.
+- **Drive mode is inferred from speed alone**, so a passenger holding the phone
+  gets the driving layout too. The manual override is the answer, and it is one
+  tap.

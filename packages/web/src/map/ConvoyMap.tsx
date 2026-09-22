@@ -107,7 +107,9 @@ export function ConvoyMap({
       style: mapStyle,
       center: [13.405, 52.52],
       zoom: 9,
-      attributionControl: { compact: true },
+      // Rendered by the app instead: the control's own corner is underneath
+      // the floating rail, and OpenStreetMap attribution has to stay visible.
+      attributionControl: false,
       // Pitch and rotation are a liability on a glanceable convoy map.
       pitchWithRotate: false,
       dragRotate: false,
