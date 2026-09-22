@@ -222,6 +222,40 @@ npm run sim -- --from 48.21,16.37 --to 47.80,13.04
 
 ---
 
+## If the map is just a dark background
+
+The convoy still works — positions, distances, ETAs and trails are all
+computed by this app. What is missing is the basemap underneath, and the app
+now says so on screen rather than leaving you with an unexplained void.
+
+The default basemap is OpenStreetMap's public tile server, which is a donated
+resource with a [usage policy](https://operations.osmfoundation.org/policies/tiles/)
+that rules out app traffic — and it does turn requests away. Other common
+causes are no internet, a privacy or ad blocker (tile domains are on some
+filter lists), or a corporate network.
+
+Quickest check: open the browser console and look for failed requests to
+`tile.openstreetmap.org`.
+
+The fix is to point `VITE_MAP_STYLE` at a basemap you control:
+
+```bash
+# .env
+VITE_MAP_STYLE=https://your-tileserver.example/style.json
+```
+
+Free-tier options that work without a key, or with a free one:
+
+| Provider | Style URL | Notes |
+| --- | --- | --- |
+| MapLibre demo | `https://demotiles.maplibre.org/style.json` | No key. Coastlines and borders only — not navigable, but always up. This is what the in-app "low-detail map" button switches to. |
+| MapTiler | `https://api.maptiler.com/maps/streets-v2/style.json?key=YOUR_KEY` | Free tier, needs a key. Full detail. |
+| Stadia Maps | `https://tiles.stadiamaps.com/styles/alidade_smooth_dark.json` | Free for non-commercial, domain registration required. |
+| Protomaps | self-hosted `.pmtiles` | No per-request cost; one file you serve yourself. |
+
+Attribution is read back from whichever style actually loads, so swapping
+providers keeps the credit line correct.
+
 ## Known limits
 
 These are design choices for a prototype, not oversights:
@@ -244,3 +278,5 @@ These are design choices for a prototype, not oversights:
 - **Drive mode is inferred from speed alone**, so a passenger holding the phone
   gets the driving layout too. The manual override is the answer, and it is one
   tap.
+- **The default basemap is not reliable and is not meant to be.** See
+  [If the map is just a dark background](#if-the-map-is-just-a-dark-background).

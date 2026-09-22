@@ -17,9 +17,12 @@ import { JoinScreen } from "./components/JoinScreen.js";
 import { LocationSheet } from "./components/LocationSheet.js";
 import { PingSheet } from "./components/PingSheet.js";
 import { RosterSheet } from "./components/RosterSheet.js";
+import { TileTrouble } from "./components/TileTrouble.js";
 import { TripHero } from "./components/TripHero.js";
 import { IconSteering } from "./components/icons.js";
-import { ConvoyMap, type CameraMode } from "./map/ConvoyMap.js";
+import { ConvoyMap, type CameraMode, type TileStatus } from "./map/ConvoyMap.js";
+import type { BasemapKind } from "./map/style.js";
+import { loadBasemap, saveBasemap } from "./prefs.js";
 import { useConvoy } from "./useConvoy.js";
 import { useDriveMode } from "./useDriveMode.js";
 import { useGeolocation } from "./useGeolocation.js";
@@ -49,6 +52,10 @@ export function App(): JSX.Element {
   const [sheet, setSheet] = useState<SheetName | null>(null);
   const [fitNonce, setFitNonce] = useState(0);
   const [cameraOverride, setCameraOverride] = useState<CameraMode | null>(null);
+  const [basemap, setBasemap] = useState<BasemapKind>(loadBasemap);
+  const [tileStatus, setTileStatus] = useState<TileStatus>("loading");
+  const [attribution, setAttribution] = useState<string | null>(null);
+  const [tileNoticeDismissed, setTileNoticeDismissed] = useState(false);
 
   const askedForLocationRef = useRef(false);
 
@@ -123,6 +130,13 @@ export function App(): JSX.Element {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [selectedId, sheet, cycleSelection]);
 
+  const chooseBasemap = useCallback((kind: BasemapKind) => {
+    setBasemap(kind);
+    saveBasemap(kind);
+    setTileStatus("loading");
+    setTileNoticeDismissed(false);
+  }, []);
+
   const fitAll = useCallback(() => {
     setCameraOverride("fit-all");
     setFitNonce((value) => value + 1);
@@ -156,6 +170,7 @@ export function App(): JSX.Element {
       camera="follow"
       followId={selected.member.id}
       routeGeometry={selected.member.route?.geometry ?? null}
+      basemap={basemap}
       compact
       className="map map--companion"
     />
@@ -187,6 +202,9 @@ export function App(): JSX.Element {
           followId={youId}
           routeGeometry={you?.route?.geometry ?? null}
           fitNonce={fitNonce}
+          basemap={basemap}
+          onTileStatus={setTileStatus}
+          onAttribution={setAttribution}
           className="map map--main"
         />
 
@@ -223,6 +241,15 @@ export function App(): JSX.Element {
           )}
         </div>
 
+        {tileStatus === "failed" && !tileNoticeDismissed ? (
+          <TileTrouble
+            basemap={basemap}
+            onUseFallback={() => chooseBasemap("fallback")}
+            onRetryDefault={() => chooseBasemap("default")}
+            onDismiss={() => setTileNoticeDismissed(true)}
+          />
+        ) : null}
+
         {client.state === "reconnecting" ? (
           <p className="floatnotice">Connection lost — retrying. Positions may be out of date.</p>
         ) : geo.error ? (
@@ -256,13 +283,14 @@ export function App(): JSX.Element {
             onInvite={() => setSheet("invite")}
             onCarView={() => setSheet("car")}
           />
-          <p className="attrib">
-            Map data ©{" "}
-            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
-              OpenStreetMap
-            </a>{" "}
-            contributors
-          </p>
+          {/* The attribution string comes from the map style, which is the
+              app's own configuration rather than anything a user supplies —
+              the same trust model MapLibre's own control uses. It is rendered
+              here instead of by that control because the floating rail sits
+              on top of the map's own corner. */}
+          {attribution ? (
+            <p className="attrib" dangerouslySetInnerHTML={{ __html: attribution }} />
+          ) : null}
         </div>
       </div>
 

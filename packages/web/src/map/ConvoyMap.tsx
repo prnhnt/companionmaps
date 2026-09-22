@@ -16,7 +16,7 @@ import maplibregl, {
 } from "maplibre-gl";
 
 import { createMotion, retarget, stepMotion, type MarkerMotion } from "./markers.js";
-import { mapStyle } from "./style.js";
+import { resolveMapStyle, type BasemapKind } from "./style.js";
 
 export type CameraMode = "fit-all" | "follow" | "free";
 
@@ -35,7 +35,51 @@ export interface ConvoyMapProps {
   fitNonce?: number;
   compact?: boolean;
   className?: string;
+  /** Which basemap to draw. Changing it rebuilds the map. */
+  basemap?: BasemapKind;
+  /** Reports whether basemap tiles are arriving. */
+  onTileStatus?: (status: TileStatus) => void;
+  /** Reports the attribution the loaded style requires, as HTML. */
+  onAttribution?: (html: string) => void;
 }
+
+/**
+ * Whether the basemap is actually being drawn.
+ *
+ * Worth reporting because the failure mode is silent: MapLibre renders the
+ * background colour and nothing else, which looks exactly like a map of the
+ * open sea at night.
+ */
+export type TileStatus = "loading" | "ok" | "failed";
+
+/** Failures before we call it: a couple of dropped tiles is not an outage. */
+const TILE_FAILURE_THRESHOLD = 4;
+
+/**
+ * Sources this component adds itself.
+ *
+ * MapLibre tiles GeoJSON sources internally, so these emit exactly the same
+ * tile-loaded events as the basemap. Counting them would mean the map always
+ * reports healthy tiles the moment a convoy trail renders — which is
+ * precisely when the basemap has most obviously failed.
+ */
+const OWN_SOURCE_IDS = new Set(["trails", "route"]);
+
+/**
+ * How long to wait for the style to load before calling it a failure.
+ *
+ * Tile errors only surface once a style has loaded and asked for tiles. If
+ * the style document itself cannot be fetched — offline, blocked, a bad
+ * VITE_MAP_STYLE — no source errors ever arrive and the map sits there
+ * blank and silent. This is the catch-all for that.
+ */
+const STYLE_LOAD_TIMEOUT_MS = 12_000;
+
+/** MapLibre's event types do not all declare sourceId, but they carry it. */
+const sourceIdOf = (event: unknown): string | undefined => {
+  const candidate = (event as { sourceId?: unknown }).sourceId;
+  return typeof candidate === "string" ? candidate : undefined;
+};
 
 const FOLLOW_ZOOM = 14.5;
 
@@ -81,6 +125,9 @@ export function ConvoyMap({
   fitNonce = 0,
   compact = false,
   className,
+  basemap = "default",
+  onTileStatus,
+  onAttribution,
 }: ConvoyMapProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -97,6 +144,10 @@ export function ConvoyMap({
   // to: re-creating the map on every position update would be catastrophic.
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
+  const onTileStatusRef = useRef(onTileStatus);
+  onTileStatusRef.current = onTileStatus;
+  const onAttributionRef = useRef(onAttribution);
+  onAttributionRef.current = onAttribution;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -104,7 +155,7 @@ export function ConvoyMap({
 
     const map = new maplibregl.Map({
       container,
-      style: mapStyle,
+      style: resolveMapStyle(basemap),
       center: [13.405, 52.52],
       zoom: 9,
       // Rendered by the app instead: the control's own corner is underneath
@@ -122,8 +173,70 @@ export function ConvoyMap({
       map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
     }
 
+    // Tile delivery, watched rather than assumed.
+    const isOwnSource = (sourceId: string | undefined): boolean =>
+      sourceId != null && OWN_SOURCE_IDS.has(sourceId);
+
+    let tilesLoaded = 0;
+    let tilesFailed = 0;
+    let styleFailed = false;
+    let reported: TileStatus | null = null;
+
+    const reportTiles = (): void => {
+      const status: TileStatus =
+        tilesLoaded > 0
+          ? "ok"
+          : styleFailed || tilesFailed >= TILE_FAILURE_THRESHOLD
+            ? "failed"
+            : "loading";
+      if (status === reported) return;
+      reported = status;
+      onTileStatusRef.current?.(status);
+    };
+
+    map.on("data", (event) => {
+      if (event.dataType !== "source") return;
+      if (!("tile" in event) || !event.tile) return;
+      if (isOwnSource(sourceIdOf(event))) return;
+      tilesLoaded += 1;
+      reportTiles();
+    });
+
+    map.on("error", (event) => {
+      // Errors carrying a sourceId are tile or source failures; everything
+      // else is a style or runtime problem and belongs in the console.
+      const sourceId = sourceIdOf(event);
+      if (!sourceId) {
+        console.error("[map]", event.error);
+        return;
+      }
+      if (isOwnSource(sourceId)) return;
+      tilesFailed += 1;
+      reportTiles();
+    });
+
+    const styleWatchdog = setTimeout(() => {
+      if (map.isStyleLoaded()) return;
+      styleFailed = true;
+      reportTiles();
+    }, STYLE_LOAD_TIMEOUT_MS);
+
     map.on("load", () => {
+      clearTimeout(styleWatchdog);
       setReady(true);
+
+      // Attribution is a licence condition, not decoration, so it is read
+      // back from whatever style actually loaded rather than hardcoded.
+      const sources = map.getStyle()?.sources ?? {};
+      const notices = [
+        ...new Set(
+          Object.entries(sources)
+            .filter(([id]) => !OWN_SOURCE_IDS.has(id))
+            .map(([, source]) => (source as { attribution?: string }).attribution)
+            .filter((value): value is string => typeof value === "string" && value.length > 0),
+        ),
+      ];
+      if (notices.length > 0) onAttributionRef.current?.(notices.join(" · "));
 
       map.addSource("trails", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       map.addLayer({
@@ -158,6 +271,7 @@ export function ConvoyMap({
     });
 
     return () => {
+      clearTimeout(styleWatchdog);
       if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
       frameRef.current = null;
       markersRef.current.forEach((tracked) => tracked.marker.remove());
@@ -168,7 +282,10 @@ export function ConvoyMap({
       map.remove();
       mapRef.current = null;
     };
-  }, [compact]);
+    // `basemap` is a dependency on purpose: switching it rebuilds the map,
+    // which is heavier than setStyle but avoids having to re-add every source
+    // and layer by hand. It is a rare, user-initiated recovery action.
+  }, [compact, basemap]);
 
   /* ---------------------------------------------------------------- */
   /* markers                                                           */

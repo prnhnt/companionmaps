@@ -556,6 +556,63 @@ code {
   color: inherit;
 }
 
+.trouble {
+  pointer-events: auto;
+  align-self: center;
+  width: min(30rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding: var(--pad) calc(var(--pad) + 2px);
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border: 1px solid #6b5316;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+}
+
+.trouble__body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.trouble__title {
+  font-size: var(--t-lead);
+  font-weight: 700;
+  color: var(--warn);
+}
+
+.trouble__text {
+  font-size: var(--t-small);
+  color: var(--text-2);
+}
+
+.trouble__detail {
+  font-size: var(--t-micro);
+  line-height: 1.6;
+  color: var(--text-3);
+  word-break: break-word;
+}
+
+.trouble__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.trouble__actions .tap {
+  flex: 1;
+  min-width: 140px;
+}
+
+.tap--ghostish {
+  background: transparent;
+  border-color: var(--ink-500);
+  color: var(--text-3);
+}
+
 .floatnotice {
   align-self: center;
   max-width: 34rem;
