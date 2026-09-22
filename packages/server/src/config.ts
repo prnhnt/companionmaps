@@ -21,7 +21,9 @@ export interface Config {
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const origins = (env["CORS_ORIGIN"] ?? "http://localhost:5173")
+  // Both spellings of the dev host: a browser treats localhost and 127.0.0.1
+  // as different origins, and people reach a dev server by either.
+  const origins = (env["CORS_ORIGIN"] ?? "http://localhost:5173,http://127.0.0.1:5173")
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);

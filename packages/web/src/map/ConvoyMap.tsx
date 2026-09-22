@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   type Destination,
@@ -84,7 +84,11 @@ export function ConvoyMap({
 }: ConvoyMapProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const readyRef = useRef(false);
+  // Nothing may touch the map until its style has loaded: markers added
+  // beforehand blow up inside MapLibre, which is exactly what happens when you
+  // join a convoy that is already moving and every member has a position on
+  // the very first render.
+  const [ready, setReady] = useState(false);
   const markersRef = useRef(new Map<string, TrackedMarker>());
   const destinationMarkerRef = useRef<Marker | null>(null);
   const frameRef = useRef<number | null>(null);
@@ -117,7 +121,7 @@ export function ConvoyMap({
     }
 
     map.on("load", () => {
-      readyRef.current = true;
+      setReady(true);
 
       map.addSource("trails", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       map.addLayer({
@@ -158,7 +162,7 @@ export function ConvoyMap({
       markersRef.current.clear();
       destinationMarkerRef.current?.remove();
       destinationMarkerRef.current = null;
-      readyRef.current = false;
+      setReady(false);
       map.remove();
       mapRef.current = null;
     };
@@ -170,7 +174,7 @@ export function ConvoyMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !ready) return;
 
     const tracked = markersRef.current;
     const seen = new Set<string>();
@@ -235,7 +239,7 @@ export function ConvoyMap({
       entry.marker.remove();
       tracked.delete(id);
     }
-  }, [members, youId, selectedId]);
+  }, [members, youId, selectedId, ready]);
 
   /** One animation loop drives every marker on this map. */
   useEffect(() => {
@@ -262,7 +266,7 @@ export function ConvoyMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !readyRef.current) return;
+    if (!map || !ready) return;
 
     const source = map.getSource("trails") as GeoJSONSource | undefined;
     if (!source) return;
@@ -280,11 +284,11 @@ export function ConvoyMap({
           },
         })),
     });
-  }, [members]);
+  }, [members, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !readyRef.current) return;
+    if (!map || !ready) return;
 
     const source = map.getSource("route") as GeoJSONSource | undefined;
     if (!source) return;
@@ -304,11 +308,11 @@ export function ConvoyMap({
             ]
           : [],
     });
-  }, [routeGeometry]);
+  }, [routeGeometry, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !ready) return;
 
     if (!destination) {
       destinationMarkerRef.current?.remove();
@@ -320,11 +324,15 @@ export function ConvoyMap({
       const element = document.createElement("div");
       element.className = "destination-marker";
       element.innerHTML = '<span class="destination-marker__pin">◎</span>';
-      destinationMarkerRef.current = new maplibregl.Marker({ element, anchor: "center" }).addTo(map);
+      // The position has to be set before the marker is added: MapLibre
+      // projects it on the way in, and a marker with no position throws.
+      destinationMarkerRef.current = new maplibregl.Marker({ element, anchor: "center" })
+        .setLngLat([destination.lng, destination.lat])
+        .addTo(map);
     }
 
     destinationMarkerRef.current.setLngLat([destination.lng, destination.lat]);
-  }, [destination]);
+  }, [destination, ready]);
 
   /* ---------------------------------------------------------------- */
   /* camera                                                            */
@@ -340,7 +348,7 @@ export function ConvoyMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || camera !== "fit-all") return;
+    if (!map || !ready || camera !== "fit-all") return;
 
     const points: LatLng[] = members
       .map((member) => member.position)
@@ -367,20 +375,20 @@ export function ConvoyMap({
     );
     // `members` is intentionally not a dependency — see memberKey above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [camera, memberKey, destination, fitNonce, compact]);
+  }, [camera, memberKey, destination, fitNonce, compact, ready]);
 
   const followTarget = members.find((member) => member.id === followId)?.position ?? null;
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || camera !== "follow" || !followTarget) return;
+    if (!map || !ready || camera !== "follow" || !followTarget) return;
 
     map.easeTo({
       center: [followTarget.lng, followTarget.lat],
       zoom: Math.max(map.getZoom(), FOLLOW_ZOOM),
       duration: 900,
     });
-  }, [camera, followTarget?.lat, followTarget?.lng, followTarget]);
+  }, [camera, followTarget?.lat, followTarget?.lng, followTarget, ready]);
 
   // A pane that appears or resizes beside another one leaves MapLibre with a
   // stale canvas size until it is told otherwise.

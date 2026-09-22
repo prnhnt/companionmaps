@@ -463,8 +463,9 @@ code {
 
 .companion-pane {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(120px, 1fr) auto;
   min-width: 0;
+  overflow: hidden;
   border-left: 1px solid var(--border);
   background: var(--surface);
 }
@@ -604,6 +605,10 @@ code {
   gap: 8px;
   font-size: 12px;
   color: var(--text-faint);
+  min-width: 0;
+}
+
+.companion__meta > span {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -645,6 +650,8 @@ code {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-height: 62%;
+  overflow-y: auto;
 }
 
 .detail__header {
@@ -974,7 +981,8 @@ code {
 .car-preview {
   min-height: 100%;
   display: grid;
-  place-items: center;
+  justify-items: center;
+  align-content: center;
   gap: 20px;
   padding: 28px;
   grid-template-rows: auto auto;
@@ -1171,31 +1179,67 @@ code {
 /* ---------------------------------------------------------------- */
 
 @media (max-width: 900px) {
-  .workspace {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(240px, 1fr) auto;
+  /* Below this width the app stops trying to fit the viewport and simply
+     scrolls. Three stacked regions cannot share one screen height without
+     one of them becoming useless. */
+  html,
+  body,
+  #root {
+    height: auto;
+    min-height: 100%;
   }
 
-  .sidebar {
-    border-left: 0;
-    border-top: 1px solid var(--border);
-    max-height: 42vh;
+  .app {
+    height: auto;
+    min-height: 100%;
+    grid-template-rows: auto auto auto auto;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+  }
+
+  .stage {
+    grid-template-rows: auto;
   }
 
   /* Side by side becomes stacked: two maps across a phone is two useless
-     maps. The panel keeps its own map, just above the detail. */
+     maps. The companion keeps their own map, above the detail. */
   .stage--split {
     grid-template-columns: 1fr !important;
-    grid-template-rows: minmax(160px, 1fr) 0 minmax(260px, 1fr);
+    grid-template-rows: auto auto;
   }
 
   .splitter {
     display: none;
   }
 
+  .map {
+    min-height: 44vh;
+  }
+
+  .map--compact {
+    min-height: 34vh;
+  }
+
   .companion-pane {
+    grid-template-rows: auto auto;
+    overflow: visible;
     border-left: 0;
     border-top: 1px solid var(--border);
+  }
+
+  .detail {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .sidebar {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    max-height: none;
+    overflow-y: visible;
   }
 
   .dock {
@@ -1204,5 +1248,9 @@ code {
 
   .topbar {
     gap: 10px;
+  }
+
+  .topbar__actions {
+    margin-left: 0;
   }
 }
