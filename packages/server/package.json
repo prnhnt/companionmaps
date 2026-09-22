@@ -1,0 +1,23 @@
+{
+  "name": "@companionmaps/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "sim": "tsx src/sim.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --import tsx ./test/*.test.ts"
+  },
+  "dependencies": {
+    "@companionmaps/shared": "*",
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/ws": "^8.5.13"
+  }
+}

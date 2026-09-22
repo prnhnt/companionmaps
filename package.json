@@ -1,0 +1,30 @@
+{
+  "name": "companionmaps",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Convoy navigation: travel to the same destination with friends and see each other on the map.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20.10"
+  },
+  "workspaces": [
+    "packages/shared",
+    "packages/server",
+    "packages/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@companionmaps/server & npm run dev --workspace=@companionmaps/web",
+    "dev:server": "npm run dev --workspace=@companionmaps/server",
+    "dev:web": "npm run dev --workspace=@companionmaps/web",
+    "sim": "npm run sim --workspace=@companionmaps/server",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
